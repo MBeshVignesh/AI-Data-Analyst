@@ -1,6 +1,42 @@
 # AI Data Analyst
 
-A local AI Data Analyst application that allows users to analyze datasets using natural language. Built with Python, Gradio, Pandas, Plotly, LangChain, ChromaDB, and Ollama.
+A local AI data copilot that lets users explore datasets using natural language. Users can upload CSV,XLSX or JSON files and ask questions to get insights, generate plots, or even create SQL queries automatically.
+
+## Example Queries
+
+Users can ask questions like:
+
+What are the top 5 products by revenue?
+Show sales by region in a bar chart.
+Which month had the highest growth?
+Write a SQL query to calculate total revenue per customer.
+
+The application responds with:
+
+Data insights and explanations
+Generated visualizations
+SQL queries or Python analysis code when requested
+
+## Technology Stack
+
+Programming & Data Processing
+Python
+Pandas
+NumPy
+
+Visualization
+Plotly
+Matplotlib
+
+AI & LLM Integration
+Ollama - llama3.2
+LangChain
+
+Vector Database
+ChromaDB
+
+User Interface
+Gradio
 
 ## Setup
 
