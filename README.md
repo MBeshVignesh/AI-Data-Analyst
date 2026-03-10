@@ -13,9 +13,9 @@ Write a SQL query to calculate total revenue per customer.
 
 The application responds with:
 
-Data insights and explanations
-Generated visualizations
-SQL queries or Python analysis code when requested
+Data insights and explanations.
+Generated visualizations.
+SQL queries or Python analysis code when requested.
 
 ## Technology Stack
 
