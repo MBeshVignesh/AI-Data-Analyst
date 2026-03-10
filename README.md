@@ -20,23 +20,23 @@ The application responds with:
 ## Technology Stack
 
 Programming & Data Processing
-Python
-Pandas
-NumPy
+- Python
+- Pandas
+- NumPy
 
 Visualization
-Plotly
-Matplotlib
+- Plotly
+- Matplotlib
 
 AI & LLM Integration
-Ollama - llama3.2
-LangChain
+- Ollama (llama3.2)
+- LangChain
 
 Vector Database
-ChromaDB
+- ChromaDB
 
 User Interface
-Gradio
+- Gradio
 
 ## Setup
 
