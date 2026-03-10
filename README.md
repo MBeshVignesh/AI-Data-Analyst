@@ -6,16 +6,16 @@ A local AI data copilot that lets users explore datasets using natural language.
 
 Users can ask questions like:
 
-What are the top 5 products by revenue?
-Show sales by region in a bar chart.
-Which month had the highest growth?
-Write a SQL query to calculate total revenue per customer.
+- What are the top 5 products by revenue?
+- Show sales by region in a bar chart.
+- Which month had the highest growth?
+- Write a SQL query to calculate total revenue per customer.
 
 The application responds with:
 
-Data insights and explanations.
-Generated visualizations.
-SQL queries or Python analysis code when requested.
+- Data insights and explanations.
+- Generated visualizations.
+- SQL queries or Python analysis code when requested.
 
 ## Technology Stack
 
