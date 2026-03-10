@@ -2,6 +2,8 @@
 
 A local AI data copilot that lets users explore datasets using natural language. Users can upload CSV,XLSX or JSON files and ask questions to get insights, generate plots, or even create SQL queries automatically.
 
+Unlike general AI tools like ChatGPT or GitHub Copilot, this application is designed specifically for dataset exploration and analytics. It allows users to upload multiple local datasets, view extracted metadata such as columns and data types, and ask natural language questions to analyze the data. When provided with data modeling templates, the system can perform automatic joins based on key relationships and generate aggregations across datasets. It can also generate insights, visualizations, or SQL queries, while running LLMs and vectorDB locally instead of sending data to external APIs for data privacy and compliance.
+
 ## Example Queries
 
 Users can ask questions like:
