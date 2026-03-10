@@ -1,4 +1,4 @@
-# AI Data Analyst
+# AI Data Copilot
 
 A local AI data copilot that lets users explore datasets using natural language. Users can upload CSV,XLSX or JSON files and ask questions to get insights, generate plots, or even create SQL queries automatically.
 
