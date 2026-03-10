@@ -1,0 +1,14 @@
+gradio
+pandas
+plotly
+matplotlib
+langchain
+langchain_community
+langchain_huggingface
+chromadb
+sentence-transformers
+ollama
+langchain_ollama
+tabulate
+pypdf
+openpyxl

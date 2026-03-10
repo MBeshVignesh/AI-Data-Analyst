@@ -1,0 +1,6 @@
+customer_id,name,segment,signup_date,lifetime_value
+1,Acme Corp,Enterprise,2023-01-15,50000
+2,Global Tech,Mid-Market,2023-04-20,15000
+3,Local Shop,Small Business,2023-08-05,2500
+4,Data Systems,Enterprise,2023-11-10,45000
+5,Web Solutions,Mid-Market,2024-02-01,12000
