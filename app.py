@@ -634,4 +634,4 @@ def create_app():
 if __name__ == "__main__":
     create_app()
     host = os.getenv("HOST", "0.0.0.0")
-    app.run(host=host, port=int(os.getenv("PORT", "80")))
+    app.run(host=host, port=int(os.getenv("PORT", "8051")))
