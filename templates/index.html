@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>AI Data Analyst</title>
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <h1>AI Data Analyst</h1>
+        <div class="section">
+          <h2>Sessions</h2>
+          <div class="row">
+            <select id="sessionSelect"></select>
+            <button id="newSessionBtn">New</button>
+          </div>
+          <div class="row">
+            <input id="renameInput" placeholder="Rename session..." />
+            <button id="renameBtn">Save</button>
+            <button id="deleteBtn">Delete</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>Sources</h2>
+          <label><input type="checkbox" value="base" checked /> Base</label>
+          <label><input type="checkbox" value="upload" checked /> Upload</label>
+          <label><input type="checkbox" value="s3" checked /> S3</label>
+          <label><input type="checkbox" value="adls" checked /> ADLS</label>
+          <label><input type="checkbox" value="cloud" checked /> Cloud</label>
+        </div>
+
+        <div class="section">
+          <h2>Upload</h2>
+          <button id="sidebarUploadBtn">Upload</button>
+          <input id="sidebarFileInput" class="hidden-input" type="file" multiple />
+          <div id="sidebarUploadActions" class="row hidden" style="margin-top:8px; align-items:center;">
+            <span id="sidebarUploadFileName" style="flex:1; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+            <button id="sidebarUploadTickBtn" style="min-width:54px; padding:4px;">Add</button>
+            <button id="sidebarUploadCrossBtn" style="min-width:64px; padding:4px;">Cancel</button>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>Dataset Preview</h2>
+          <select id="datasetSelect"></select>
+          <div id="datasetPreview" class="table-wrap"></div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <div id="chat" class="chat"></div>
+        <div class="composer">
+          <textarea id="messageInput" placeholder="Ask a question..."></textarea>
+          <div class="actions">
+            <button id="sendBtn" class="primary">Send</button>
+            <button id="refreshBtn">Refresh</button>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="/static/plotly.min.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

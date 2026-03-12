@@ -1,4 +1,5 @@
-gradio
+flask
+gunicorn
 pandas
 plotly
 matplotlib
@@ -12,3 +13,7 @@ langchain_ollama
 tabulate
 pypdf
 openpyxl
+boto3
+azure-storage-file-datalake
+python-dotenv
+seaborn

@@ -1,22 +1,30 @@
 import re
+import time
 import traceback
 from typing import Tuple, Any, Dict, List, Optional
 from langchain_ollama import OllamaLLM
 from langchain_core.prompts import PromptTemplate
 from ..rag.retriever import ContextRetriever
-from ..utils.safe_code_executor import execute_analysis_code
+from ..utils.safe_code_executor import execute_analysis_code, auto_plot_from_code
 
 
 class DataAgent:
     def __init__(self, retriever: ContextRetriever, datasets: Dict[str, Any], model_name: str = "llama3.2"):
         self.retriever = retriever
         self.datasets = datasets
-        self.llm = OllamaLLM(model=model_name, temperature=0.3, max_tokens=6000)
+        self.llm = OllamaLLM(model=model_name, temperature=0.1, max_tokens=6000)
 
         self.prompt_template = PromptTemplate(
             input_variables=["context", "question"],
             template="""
-You are a professional **Data Analyst**. Your job is to answer the user with **accurate, detailed insights** and to run code when needed. Always use the **exact dataset and column names** from the context below.
+You are a highly capable, flexible, and conversational **Data Analyst**. Your top priority is to provide **Business Insights** and communicate naturally with the user. You are NOT just a rigid code generator.
+
+IMPORTANT ABILITIES:
+1. Provide rich business insights in warm, natural language BEFORE writing any code. Explain patterns, trends, and significance.
+2. Show sample data automatically when asked or when it adds clarity. Briefly interpret what the data represents.
+3. Generate plots that render purely in the conversation window when asked (NO EXTERNAL WINDOWS).
+4. Generate SQL code if asked. You are fluent in SQL and can provide raw queries if requested.
+5. Use Python to compute answers or plot data, but always surround it with rich conversational context. NEVER output just code!
 
 ---
 
@@ -27,54 +35,52 @@ If the context includes **"User uploaded the following file(s)"** (e.g. PDF text
 
 ---
 
-## Behavior by Request Type
+## Behavior Guidelines by Request Type
 
-### 1. SQL-only requests
-If the user asks **only** for SQL (e.g. "write a SQL query", "give me the SQL", "SQL only", "just the query", "convert this to SQL"):
-- Respond with **only** a one-line description and a single ```sql code block. Do NOT generate any Python.
-- Use only table/column names that exist in the dataset context above.
+### 1. Business Insights / Open-Ended Analysis
+- If the user asks a general question (e.g., "What can you tell me?", "Analyze this data", "Give me some insights"):
+  - Give a highly conversational, detailed breakdown.
+  - Generate **Python** to compute the answer. 
+  - Provide a thorough, well-formatted response with bullet points detailing multiple insights (e.g., trends, outliers, high/low values).
+  - Do NOT just drop a snippet of code and leave. Be a true analyst and interpret the numbers!
 
-### 2. Plots / charts / visualizations
-If the user asks for a **plot, chart, graph, or visualization** (e.g. "plot", "chart", "visualize", "graph", "bar chart", "line plot"):
-- Generate **Python** that loads the data, creates the plot, and assigns the figure: `fig = plt.gcf()` before the block ends.
-- Use: `import pandas as pd`, `import matplotlib.pyplot as plt`, `datasets = datasets`, `df = datasets["EXACT_DATASET_NAME"]`.
-- Write 1–2 sentences describing what the plot shows and one concrete insight (e.g. a trend or outlier).
-- Do NOT repeat the code in your narrative.
+### 2. Show records / sample data / view table
+- If the user explicitly asks to see data, or if showing data helps answer their question:
+  - Generate **Python** that **prints** the data: e.g. `print(df.head(10).to_markdown())` or `print(df.tail(5))`.
+  - Speak conversationally: "Here are the first few rows of the data for you to review." Then the output of the print will show up.
 
-### 3. "What is the output of this SQL?" / "Run this query" / user pastes SQL and wants results
-- The user wants to **see the result table**, not just the SQL again. Generate **Python** that replicates the SQL logic using pandas (e.g. groupby, agg, merge) on the dataset, then **print the result** with `print(result_df)` or `print(df.to_string())` so the actual data is shown.
-- Map SQL to pandas: GROUP BY → df.groupby(), AVG/SUM/COUNT → .agg(), ORDER BY → .sort_values(). Use the exact column names from the context.
-- One short line (e.g. "Result of the query:") then the code. The printed output will be the answer.
+### 3. Plots / charts / visualizations
+- If asked for a plot (e.g., "visualize", "plot", "chart", "graph"):
+  - Generate **Python** that assigns the figure to `fig`.
+  - Prefer Plotly (`import plotly.express as px`) for interactive graphs, or Matplotlib/Seaborn.
+  - Access the data dynamically using: `df = datasets["EXACT_DATASET_NAME"]`.
+  - Describe the plot conversationally and point out at least one interesting insight from the chart. 
 
-### 4. Show records / sample data / view table / data table
-- Generate **Python** that **prints** the data so the user sees the table: e.g. `print(df.head(10))` or `print(df.to_string())`. The system captures print output and shows it.
-- Say briefly what you are showing (e.g. "First 10 rows of the sales table:") then let the code output speak.
+### 4. SQL-only requests
+- If the user asks **only** for SQL (e.g. "write a SQL query", "give me the SQL"):
+  - Respond with a conversational intro, then provide the SQL code block. Make sure you use the exact table/column names from the context. Do NOT generate Python code unless they also ask to execute it.
 
-### 5. General analysis (stats, comparisons, "how many", "what is", "summarize")
-- Generate **Python** to compute the answer, then give **detailed insights**:
-  - 2–4 sentences: what you did, the main numbers (counts, sums, percentages), and a clear takeaway.
-  - Use specific numbers from the data; do not give vague answers.
-- Use only column names from the schema. No guessing values.
-
----
-
-## Strict rules
-- **EXACT COLUMNS**: Use only column names and dataset names from the context. Copy them character-for-character.
-- **NO HALLUCINATION**: Do not invent data. If you need a number, compute it in code.
-- **ACTION OVER INSTRUCTION**: Provide runnable code and results, not "you can run this" instructions.
-- **ONE FIG PER PLOT REQUEST**: For plots, exactly one Python block ending with `fig = plt.gcf()`.
-- **OUTPUT CODE ONCE**: In your reply, include the code block **only once**. Do not repeat the same code after the narrative or insights.
+### 5. Executing SQL ("Run this query")
+- Generate **Python** using `pandas` to replicate the SQL logic. 
+  - E.g., `GROUP BY` -> `df.groupby()`, `ORDER BY` -> `.sort_values()`.
+  - Print the result using `print(result_df)`. Say something like, "Here is the result of your query:"
 
 ---
 
-## Response structure
-1. Short intro (what you are doing).
-2. code block: ```python or ```sql as above. Do not duplicate the code.
-3. **Insights**: For analysis and plots, add 2–4 sentences with specific numbers. Do not repeat or paste the code again.
+## Strict Rules
+- **TEXT FIRST**: Start with a brief 1-sentence natural-language lead-in. If you include code, place code blocks immediately after that sentence, then continue with the narrative.
+- **BUSINESS INSIGHTS**: Do not just spit out numbers. Be a real analyst interpreting the data organically.
+- **EXACT COLUMNS**: Copy column and dataset names character-for-character from the Context.
+- **CASE SENSITIVE**: Column names are case-sensitive. Preserve the exact capitalization from the Context.
+- **FLEXIBLE OUTPUT**: Provide SQL for the user to copy, based precisely on their request.
+- **USE CODE AS NEEDED**: Write Python when you need to calculate an answer, plot data, or show data.
+- **NO FILE I/O**: Use `datasets["<name>"]` exclusively. No `pd.read_csv()`!
+- **ONE FIG PER REQUEST**: If plotting, assign exactly one figure to the `fig` variable.
+- **CONVERSATIONAL TONE**: Provide friendly, non-rigid, informative analysis.
 
 ---
 
-## User question
+## User Question
 {question}
 """
         )
@@ -102,7 +108,9 @@ Fix the Python code so it works correctly.
 {error}
 
 Write ONLY the corrected ```python code block. No explanation.
-Use only the column names shown above.
+- Use only the column names shown above.
+- Access data using `df = datasets["EXACT_DATASET_NAME"]`. Do NOT use `pd.read_csv()`.
+- Never read local files. Use `datasets[...]` only.
 """
         )
 
@@ -144,6 +152,8 @@ Use only the column names shown above.
         prefetched_context: Optional[str] = None,
         preferred_dataset_names: Optional[List[str]] = None,
         upload_context: Optional[str] = None,
+        allowed_dataset_names: Optional[List[str]] = None,
+        allowed_sources: Optional[List[str]] = None,
     ):
         """
         Streaming version of the pipeline. Yields (text_token, fig, code, error, run_output).
@@ -156,8 +166,13 @@ Use only the column names shown above.
                 combined_context = prefetched_context
                 print(f"[DataAgent] Using pre-fetched context.")
             else:
-                dataset_context = self.retriever.get_relevant_datasets(
-                    question, top_k=5, preferred_dataset_names=preferred_dataset_names
+                dataset_context = self.retriever.get_relevant_context(
+                    question,
+                    top_k_datasets=8,
+                    top_k_files=8,
+                    preferred_dataset_names=preferred_dataset_names,
+                    allowed_dataset_names=allowed_dataset_names,
+                    allowed_sources=allowed_sources,
                 )
                 memory_context = self.retriever.vector_db.get_memory(session_id, question)
                 combined_context = dataset_context + ("\n" + memory_context if memory_context else "")
@@ -168,9 +183,19 @@ Use only the column names shown above.
             prompt = self.prompt_template.format(context=combined_context, question=question)
             print(f"[DataAgent] Streaming LLM (session={session_id[:8]}…)")
             full_response = ""
+            last_emitted_code = ""
             for chunk in self.llm.stream(prompt):
                 full_response += chunk
                 yield chunk, None, "", "", ""
+
+                if "```" in chunk:
+                    partial_blocks = self.extract_all_code_blocks(full_response)
+                    if partial_blocks:
+                        display_code_parts = [f"{lang}\n{code}" for lang, code in partial_blocks]
+                        display_code = "\n\n---\n\n".join(display_code_parts)
+                        if display_code and display_code != last_emitted_code:
+                            last_emitted_code = display_code
+                            yield "", None, display_code, "", ""
 
             # 3. Extract and execute code (same as run())
             code_blocks = self.extract_all_code_blocks(full_response)
@@ -187,11 +212,28 @@ Use only the column names shown above.
             py_text_output = ""
             internal_error = ""
             display_code_parts = []
+            combined_python = None
 
             if python_blocks:
-                combined_python = "\n\n".join(python_blocks)
+                combined_python = python_blocks[0]
                 display_code_parts.append(f"python\n{combined_python}")
+
+            for sql in sql_blocks:
+                display_code_parts.append(f"sql\n{sql}")
+
+            display_code = "\n\n---\n\n".join(display_code_parts) if display_code_parts else ""
+            if display_code and display_code != last_emitted_code:
+                last_emitted_code = display_code
+                yield "", None, display_code, "", ""
+
+            if combined_python:
                 py_text_output, fig, internal_error = execute_analysis_code(combined_python, self.datasets)
+                plot_requested = bool(re.search(r"\\b(px|sns|plt)\\.|plotly", combined_python, flags=re.IGNORECASE))
+
+                if plot_requested and (fig is None or internal_error):
+                    # Retry once after a short pause for more robust chart generation
+                    time.sleep(0.4)
+                    py_text_output, fig, internal_error = execute_analysis_code(combined_python, self.datasets)
 
                 if internal_error:
                     print(f"[DataAgent] Attempting self-heal...")
@@ -206,18 +248,30 @@ Use only the column names shown above.
                     if extracted:
                         _, fixed_code = extracted[0]
                         display_code_parts[0] = f"python\n{fixed_code}"
-                        py_text_output, fig, _ = execute_analysis_code(fixed_code, self.datasets)
+                        display_code = "\n\n---\n\n".join(display_code_parts)
+                        if display_code and display_code != last_emitted_code:
+                            last_emitted_code = display_code
+                            yield "", None, display_code, "", ""
+                        py_text_output, fig, internal_error = execute_analysis_code(fixed_code, self.datasets)
 
-            for sql in sql_blocks:
-                display_code_parts.append(f"sql\n{sql}")
+                if plot_requested and fig is None:
+                    fallback_fig = auto_plot_from_code(combined_python, self.datasets)
+                    if fallback_fig is not None:
+                        fig = fallback_fig
+                        internal_error = ""
 
-            display_code = "\n\n---\n\n".join(display_code_parts) if display_code_parts else ""
-            yield "", fig, display_code, "", py_text_output or ""
+            yield "", fig, "", internal_error or "", py_text_output or ""
 
         except Exception as e:
             yield f"I encountered an issue analyzing the data: {str(e)}", None, "", "", ""
 
-    def run(self, question: str, session_id: str = "default") -> Tuple[str, Any, str, str]:
+    def run(
+        self,
+        question: str,
+        session_id: str = "default",
+        allowed_dataset_names: Optional[List[str]] = None,
+        allowed_sources: Optional[List[str]] = None,
+    ) -> Tuple[str, Any, str, str]:
         """
         Runs the agent pipeline:
         1. Build context (dataset schemas + session memory)
@@ -232,7 +286,13 @@ Use only the column names shown above.
         """
         try:
             # 1. Build rich context
-            dataset_context = self.retriever.get_relevant_datasets(question, top_k=5)
+            dataset_context = self.retriever.get_relevant_context(
+                question,
+                top_k_datasets=8,
+                top_k_files=8,
+                allowed_dataset_names=allowed_dataset_names,
+                allowed_sources=allowed_sources,
+            )
             memory_context = self.retriever.vector_db.get_memory(session_id, question)
             combined_context = dataset_context + ("\n" + memory_context if memory_context else "")
 
@@ -261,9 +321,10 @@ Use only the column names shown above.
             display_code_parts = []
 
             if python_blocks:
-                combined_python = "\n\n".join(python_blocks)
+                combined_python = python_blocks[0]
                 display_code_parts.append(f"python\n{combined_python}")
                 py_text_output, fig, internal_error = execute_analysis_code(combined_python, self.datasets)
+                plot_requested = bool(re.search(r"\\b(px|sns|plt)\\.|plotly", combined_python, flags=re.IGNORECASE))
 
                 # Self-healing retry on error
                 if internal_error:
@@ -292,6 +353,12 @@ Use only the column names shown above.
                             internal_error = "" 
                     else:
                         return narrative, fig, "\n\n---\n\n".join(display_code_parts), "Analysis failed. Please try rephrasing."
+
+                if plot_requested and fig is None:
+                    fallback_fig = auto_plot_from_code(combined_python, self.datasets)
+                    if fallback_fig is not None:
+                        fig = fallback_fig
+                        internal_error = ""
 
             for sql in sql_blocks:
                 display_code_parts.append(f"sql\n{sql}")

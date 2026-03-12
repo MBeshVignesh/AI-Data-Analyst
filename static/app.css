@@ -1,0 +1,240 @@
+* {
+  box-sizing: border-box;
+  font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  padding: 20px;
+  background: #f8fafc;
+  border-right: 1px solid #e2e8f0;
+}
+
+.sidebar h1 {
+  margin: 0 0 12px 0;
+  font-size: 20px;
+  color: #0f172a;
+}
+
+.section {
+  margin: 16px 0;
+}
+
+.section h2 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+}
+
+.section label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #334155;
+  cursor: pointer;
+}
+
+.section input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+select, input, textarea, button {
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 8px;
+}
+
+.hidden-input {
+  display: none;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid #cbd5e1;
+  background: #f1f5f9;
+  transition: background 0.2s ease;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
+}
+
+button.primary:hover {
+  background: #111827;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #ffffff;
+}
+
+.chat {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.message {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  max-width: 80%;
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+.message.user {
+  background: #0f172a;
+  color: #ffffff;
+  margin-left: auto;
+}
+
+.message.assistant {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.message.assistant .assistant-code {
+  margin-top: 10px;
+}
+
+.message.assistant .assistant-plot {
+  margin-top: 12px;
+}
+
+.plot-progress {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.message pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 10px;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.message code {
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+}
+
+.plot {
+  width: 100%;
+  min-height: 280px;
+}
+
+.debug {
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 12px;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.debug.hidden {
+  display: none;
+}
+
+.hidden {
+  display: none;
+}
+
+.debug-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: #334155;
+}
+
+.debug pre {
+  white-space: pre-wrap;
+  font-size: 12px;
+  color: #0f172a;
+}
+
+.composer {
+  padding: 16px;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.composer textarea {
+  height: 80px;
+  margin-top: 8px;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  justify-content: flex-end;
+}
+
+#datasetPreview {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.table-wrap th, .table-wrap td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+
+.table-wrap th {
+  background: #f8fafc;
+  color: #0f172a;
+}
+.actions button {
+  width: auto;
+  min-width: 88px;
+}
