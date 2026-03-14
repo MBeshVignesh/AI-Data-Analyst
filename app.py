@@ -116,8 +116,10 @@ def _register_file(path: str, source: str):
 
 
 def _dataset_choices_for_sources(sources: Optional[list]) -> list:
-    if not sources:
+    if sources is None:
         return list(app_state["datasets"].keys())
+    if len(sources) == 0:
+        return []
     choices = []
     for name in app_state["datasets"].keys():
         src = app_state["dataset_sources"].get(name, "base")
@@ -152,6 +154,39 @@ def _is_overview_query(question: str) -> bool:
     return any(k in q for k in keywords)
 
 
+def _parse_source_filter(raw: Any) -> Optional[list[str]]:
+    """
+    Parse source filter from JSON payload/form field.
+    Returns:
+      - None: no filter was provided
+      - []: filter provided but user selected no sources
+      - ["base", ...]: explicit selected sources
+    """
+    if raw is None:
+        return None
+
+    parsed = raw
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            return None
+
+    if parsed is None:
+        return None
+    if not isinstance(parsed, list):
+        return None
+
+    cleaned = []
+    for item in parsed:
+        if not isinstance(item, str):
+            continue
+        val = item.strip()
+        if val:
+            cleaned.append(val)
+    return list(dict.fromkeys(cleaned))
+
+
 def _build_overview_response(dataset_name: str) -> str:
     df = app_state["datasets"].get(dataset_name)
     if df is None:
@@ -184,6 +219,9 @@ def _load_cloud_ingest():
             file_path = os.path.join(root, filename)
             rel = os.path.relpath(root, CLOUD_INGEST_DIR)
             parts = rel.split(os.sep) if rel != "." else []
+            # Skip internal sync manifests; they are metadata, not user datasets.
+            if parts and parts[0] == "_manifests":
+                continue
             source = parts[0] if parts else "cloud"
             container = parts[1] if len(parts) > 1 else None
             if filename.lower().endswith(TABULAR_EXTENSIONS):
@@ -193,6 +231,16 @@ def _load_cloud_ingest():
                     _register_dataset(name, df, source=source, path=file_path)
             elif filename.lower().endswith(NON_TABULAR_EXTENSIONS):
                 _register_file(file_path, source=source)
+
+
+def _reconcile_vector_index():
+    """Prune vector-indexed datasets that are no longer loaded in memory."""
+    loaded_names = set(app_state["datasets"].keys())
+    indexed_names = set(app_state["vector_db"].list_indexed_dataset_names())
+    stale = indexed_names - loaded_names
+    for name in stale:
+        app_state["vector_db"].delete_dataset_index(name)
+        app_state["dataset_sources"].pop(name, None)
 
 
 def init_app_state():
@@ -210,6 +258,7 @@ def init_app_state():
                 if filename.lower().endswith(NON_TABULAR_EXTENSIONS):
                     _register_file(os.path.join(LOCAL_UPLOADS_NON_TABULAR_DIR, filename), source="upload")
         _load_cloud_ingest()
+        _reconcile_vector_index()
 
         app_state["sessions"] = app_state["vector_db"].get_sessions()
         if not app_state["sessions"]:
@@ -290,6 +339,9 @@ def _ingest_files_from_paths(paths: list[str], source: str, container: Optional[
     for path in paths:
         if not path or not os.path.isfile(path):
             continue
+        rel_path = os.path.relpath(path, CLOUD_INGEST_DIR)
+        if rel_path.startswith(f"_manifests{os.sep}") or rel_path == "_manifests":
+            continue
         filename = os.path.basename(path)
         ext = os.path.splitext(filename)[1].lower()
         if ext in TABULAR_EXTENSIONS:
@@ -320,10 +372,12 @@ def api_plots(filename: str):
 def api_init():
     with state_lock:
         datasets = list(app_state["datasets"].keys())
+        dataset_sources = dict(app_state["dataset_sources"])
         sessions = app_state["sessions"]
         current_session_id = app_state["current_session_id"]
     return jsonify({
         "datasets": datasets,
+        "dataset_sources": dataset_sources,
         "sessions": sessions,
         "current_session_id": current_session_id
     })
@@ -436,7 +490,7 @@ def api_chat_stream():
     message = request.form.get("message", "").strip()
     session_id = request.form.get("session_id") or app_state["current_session_id"]
     source_filter_raw = request.form.get("source_filter")
-    source_filter = json.loads(source_filter_raw) if source_filter_raw else None
+    source_filter = _parse_source_filter(source_filter_raw)
 
     files = request.files.getlist("files")
     new_dataset_names = []
@@ -467,27 +521,48 @@ def api_chat_stream():
     if not message:
         return jsonify({"error": "Message required"}), 400
 
-    allowed_sources = source_filter or None
-    allowed_dataset_names = None
-    if allowed_sources:
+    allowed_sources = source_filter
+    allowed_dataset_names = None if allowed_sources is None else []
+    if allowed_sources is not None:
         allowed_dataset_names = [
             name for name, src in app_state["dataset_sources"].items() if src in allowed_sources
         ]
     matched_datasets = _find_dataset_mentions(message)
+    resolved_datasets = []
     if matched_datasets:
-        resolved = []
         for name in matched_datasets:
             resolved_name = _resolve_dataset_key(name) or name
-            resolved.append(resolved_name)
+            resolved_datasets.append(resolved_name)
+        # Deduplicate while preserving order
+        resolved_datasets = list(dict.fromkeys(resolved_datasets))
         if allowed_dataset_names is None:
-            allowed_dataset_names = resolved
+            allowed_dataset_names = resolved_datasets
         else:
-            allowed_dataset_names = list(set(allowed_dataset_names) | set(resolved))
-    if allowed_dataset_names is not None and new_dataset_names:
-        allowed_dataset_names = list(set(allowed_dataset_names) | set(new_dataset_names))
+            # Keep lineage filter strict; only include mentions that exist in selected sources.
+            mentioned_allowed = [n for n in resolved_datasets if n in set(allowed_dataset_names)]
+            if mentioned_allowed:
+                allowed_dataset_names = mentioned_allowed
 
     if matched_datasets and _is_overview_query(message):
-        overview_text = _build_overview_response(matched_datasets[0])
+        target_dataset = None
+        if resolved_datasets:
+            if allowed_dataset_names is None:
+                target_dataset = resolved_datasets[0]
+            else:
+                allowed_set = set(allowed_dataset_names)
+                for name in resolved_datasets:
+                    if name in allowed_set:
+                        target_dataset = name
+                        break
+
+        if not target_dataset:
+            if allowed_sources is not None:
+                overview_text = "No matching dataset found in the selected source filter."
+            else:
+                overview_text = "Dataset not found."
+        else:
+            overview_text = _build_overview_response(target_dataset)
+
         def generate_overview():
             yield f"data: {json.dumps({'type': 'final', 'content': overview_text})}\n\n"
         try:
@@ -502,7 +577,7 @@ def api_chat_stream():
         prefetched_context = None
         if prefetched and prefetched.get("text") == message:
             prefetched_context = prefetched.get("context")
-        preferred_names = new_dataset_names if new_dataset_names else (matched_datasets if matched_datasets else None)
+        preferred_names = new_dataset_names if new_dataset_names else (resolved_datasets if resolved_datasets else None)
 
         gen = app_state["agent"].run_stream(
             message,
@@ -600,13 +675,13 @@ def api_prefetch():
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
     session_id = data.get("session_id") or app_state["current_session_id"]
-    source_filter = data.get("source_filter")
+    source_filter = _parse_source_filter(data.get("source_filter"))
     if len(text) < 5:
         return jsonify({"ok": True})
 
-    allowed_sources = source_filter or None
-    allowed_dataset_names = None
-    if allowed_sources:
+    allowed_sources = source_filter
+    allowed_dataset_names = None if allowed_sources is None else []
+    if allowed_sources is not None:
         allowed_dataset_names = [
             name for name, src in app_state["dataset_sources"].items() if src in allowed_sources
         ]

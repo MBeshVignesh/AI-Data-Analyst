@@ -52,7 +52,7 @@ class ContextRetriever:
         """
         context_parts = []
         seen = set()
-        allowed = set(allowed_dataset_names) if allowed_dataset_names else None
+        allowed = set(allowed_dataset_names) if allowed_dataset_names is not None else None
 
         # Prefer recently uploaded / user-specified datasets so the question is about that data
         if preferred_dataset_names:

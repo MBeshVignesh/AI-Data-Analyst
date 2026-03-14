@@ -1,7 +1,6 @@
 import os
 import re
 import chromadb
-from chromadb.config import Settings
 from .embeddings import get_embedding_model
 from typing import List, Dict, Any, Optional
 from ..utils.chunking import tabular_to_chunks
@@ -70,19 +69,65 @@ class VectorDBManager:
 
         # Cache per-session memory collections to keep sessions fully isolated
         self._session_memory_collections: Dict[str, Any] = {}
+        self._cleanup_orphan_session_memory_collections()
 
     def _session_memory_collection_name(self, session_id: str) -> str:
         safe_id = re.sub(r"[^a-zA-Z0-9_-]", "_", session_id)
         return f"chat_memory__{safe_id}"
 
-    def _get_session_memory_collection(self, session_id: str):
+    def _list_collection_names(self) -> List[str]:
+        names: List[str] = []
+        try:
+            for col in self.client.list_collections():
+                names.append(col.name if hasattr(col, "name") else str(col))
+        except Exception:
+            return []
+        return names
+
+    def _get_session_memory_collection(self, session_id: str, create_if_missing: bool = True):
         if session_id not in self._session_memory_collections:
             name = self._session_memory_collection_name(session_id)
-            self._session_memory_collections[session_id] = self.client.get_or_create_collection(
-                name=name,
-                embedding_function=self.wrapper
-            )
+            if create_if_missing:
+                self._session_memory_collections[session_id] = self.client.get_or_create_collection(
+                    name=name,
+                    embedding_function=self.wrapper
+                )
+            else:
+                try:
+                    self._session_memory_collections[session_id] = self.client.get_collection(
+                        name=name,
+                        embedding_function=self.wrapper
+                    )
+                except Exception:
+                    return None
         return self._session_memory_collections[session_id]
+
+    def _delete_session_memory_collection(self, session_id: str):
+        name = self._session_memory_collection_name(session_id)
+        self._session_memory_collections.pop(session_id, None)
+        try:
+            self.client.delete_collection(name=name)
+        except Exception:
+            pass
+
+    def _cleanup_orphan_session_memory_collections(self):
+        """Delete per-session memory collections that no longer map to active sessions."""
+        try:
+            session_names = {
+                self._session_memory_collection_name(s["id"])
+                for s in self.get_sessions()
+                if s.get("id")
+            }
+            for name in self._list_collection_names():
+                if not name.startswith("chat_memory__"):
+                    continue
+                if name not in session_names:
+                    try:
+                        self.client.delete_collection(name=name)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
         
     def add_dataset_metadata(self, metadata: Dict[str, Any]):
         """Adds dataset metadata to the vector DB. Uses a rich searchable document for better retrieval."""
@@ -96,12 +141,39 @@ class VectorDBManager:
         )
         print(f"Added/Updated metadata for dataset: {name}")
 
+    def list_indexed_dataset_names(self) -> List[str]:
+        try:
+            results = self.metadata_collection.get()
+            return results.get("ids") or []
+        except Exception:
+            return []
+
+    def delete_dataset_index(self, dataset_name: str):
+        try:
+            self.metadata_collection.delete(ids=[dataset_name])
+        except Exception:
+            pass
+        # Remove associated tabular chunks using both modern metadata and legacy file_id keys.
+        try:
+            self.file_collection.delete(where={"dataset": dataset_name})
+        except Exception:
+            pass
+        try:
+            self.file_collection.delete(where={"file_id": f"tabular::{dataset_name}"})
+        except Exception:
+            pass
+
     def add_file_chunks(
         self,
         file_id: str,
         chunks: List[str],
         metadata: Dict[str, Any],
     ):
+        # Replace file chunks atomically-ish to avoid stale tail chunks when files shrink.
+        try:
+            self.file_collection.delete(where={"file_id": file_id})
+        except Exception:
+            pass
         if not chunks:
             return
         ids = [f"{file_id}::{i}" for i in range(len(chunks))]
@@ -163,7 +235,9 @@ class VectorDBManager:
     ) -> List[Dict[str, Any]]:
         try:
             where = None
-            if allowed_sources:
+            if allowed_sources is not None:
+                if len(allowed_sources) == 0:
+                    return []
                 where = {"source": {"$in": allowed_sources}}
             results = self.file_collection.query(
                 query_texts=[query],
@@ -221,10 +295,7 @@ class VectorDBManager:
             self.memory_collection.delete(where={"session_id": session_id})
         except Exception:
             pass
-        try:
-            self._get_session_memory_collection(session_id).delete(where={"session_id": session_id})
-        except Exception:
-            pass
+        self._delete_session_memory_collection(session_id)
 
     def add_memory(
         self,
@@ -272,7 +343,9 @@ class VectorDBManager:
             legacy_results = {"metadatas": []}
 
             try:
-                per_results = self._get_session_memory_collection(session_id).get(include=["metadatas"])
+                per_collection = self._get_session_memory_collection(session_id, create_if_missing=False)
+                if per_collection is not None:
+                    per_results = per_collection.get(include=["metadatas"])
             except Exception:
                 per_results = {"metadatas": []}
 
@@ -324,12 +397,13 @@ class VectorDBManager:
             legacy_docs = []
 
             try:
-                per_count = self._get_session_memory_collection(session_id).count()
+                per_collection = self._get_session_memory_collection(session_id, create_if_missing=False)
+                per_count = per_collection.count() if per_collection is not None else 0
             except Exception:
                 per_count = 0
 
             if per_count > 0:
-                per_results = self._get_session_memory_collection(session_id).query(
+                per_results = per_collection.query(
                     query_texts=[query],
                     n_results=min(n_results, per_count)
                 )

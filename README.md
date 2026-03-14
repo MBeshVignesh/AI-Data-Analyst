@@ -60,3 +60,22 @@ User Interface
    python app.py
    ```
    If you use the project venv, run from the same directory so `./data` and imports resolve correctly.
+
+## Embedding Model Configuration
+
+The app uses an open-source Hugging Face embedding model for RAG.
+
+- Default (higher quality, free): `BAAI/bge-base-en-v1.5`
+- Faster/lighter option: `sentence-transformers/all-MiniLM-L6-v2`
+- Higher quality/heavier option: `BAAI/bge-large-en-v1.5`
+
+Configure with environment variables:
+
+```bash
+export EMBEDDING_MODEL="BAAI/bge-base-en-v1.5"
+export EMBEDDING_DEVICE="cpu"            # or "cuda" if available
+export EMBEDDING_NORMALIZE="true"        # recommended
+export EMBEDDING_BATCH_SIZE="32"         # optional
+```
+
+Important: if you change `EMBEDDING_MODEL`, rebuild/reindex your vector DB (`data/chroma_db`) so indexed vectors and query vectors stay in the same embedding space.

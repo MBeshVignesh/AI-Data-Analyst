@@ -2,6 +2,8 @@ let currentSessionId = null;
 let currentController = null;
 let activeAssistant = null;
 let stopRequested = false;
+let allDatasets = [];
+let datasetSourceMap = {};
 
 const chatEl = document.getElementById("chat");
 const sendBtn = document.getElementById("sendBtn");
@@ -20,14 +22,10 @@ const deleteBtn = document.getElementById("deleteBtn");
 const datasetSelect = document.getElementById("datasetSelect");
 const datasetPreview = document.getElementById("datasetPreview");
 const refreshBtn = document.getElementById("refreshBtn");
+const sourceFilterBoxes = Array.from(document.querySelectorAll("input.source-filter"));
 
 function getSourceFilter() {
-  const boxes = document.querySelectorAll('.section input[type="checkbox"]');
-  const sources = [];
-  boxes.forEach((b) => {
-    if (b.checked) sources.push(b.value);
-  });
-  return sources;
+  return sourceFilterBoxes.filter((b) => b.checked).map((b) => b.value);
 }
 
 function addMessage(role, content) {
@@ -182,8 +180,10 @@ async function loadInit() {
   const res = await fetch("/api/init");
   const data = await res.json();
   currentSessionId = data.current_session_id;
+  allDatasets = data.datasets || [];
+  datasetSourceMap = data.dataset_sources || {};
   renderSessions(data.sessions);
-  renderDatasets(data.datasets);
+  renderDatasetsForSources();
   if (currentSessionId) {
     const turnsRes = await fetch("/api/sessions/select", {
       method: "POST",
@@ -231,6 +231,7 @@ function renderSessions(sessions) {
 }
 
 function renderDatasets(datasets) {
+  const previous = datasetSelect.value;
   datasetSelect.innerHTML = "";
   datasets.forEach((d) => {
     const opt = document.createElement("option");
@@ -239,9 +240,22 @@ function renderDatasets(datasets) {
     datasetSelect.appendChild(opt);
   });
   if (datasets.length > 0) {
-    datasetSelect.value = datasets[0];
-    loadDatasetPreview(datasets[0]);
+    const selected = datasets.includes(previous) ? previous : datasets[0];
+    datasetSelect.value = selected;
+    loadDatasetPreview(selected);
+    return;
   }
+  datasetPreview.textContent = "No datasets available for selected sources.";
+}
+
+function getDatasetsForSelectedSources() {
+  const selectedSources = new Set(getSourceFilter());
+  if (selectedSources.size === 0) return [];
+  return allDatasets.filter((name) => selectedSources.has(datasetSourceMap[name] || "base"));
+}
+
+function renderDatasetsForSources() {
+  renderDatasets(getDatasetsForSelectedSources());
 }
 
 async function loadDatasetPreview(name) {
@@ -331,6 +345,11 @@ sendBtn.addEventListener("click", async () => {
     sendBtn.textContent = "Send";
     return;
   }
+  const selectedSources = getSourceFilter();
+  if (selectedSources.length === 0) {
+    addMessage("assistant", "Select at least one source to run analysis.");
+    return;
+  }
   addMessage("user", message);
   activeAssistant = addAssistantShell();
   activeAssistant.content.textContent = "Thinking...";
@@ -339,7 +358,7 @@ sendBtn.addEventListener("click", async () => {
   const form = new FormData();
   form.append("message", message);
   form.append("session_id", currentSessionId || "");
-  form.append("source_filter", JSON.stringify(getSourceFilter()));
+  form.append("source_filter", JSON.stringify(selectedSources));
 
   currentController = new AbortController();
   sendBtn.textContent = "Stop";
@@ -415,10 +434,11 @@ sendBtn.addEventListener("click", async () => {
 messageInput.addEventListener("input", async () => {
   const text = messageInput.value.trim();
   if (text.length < 5) return;
+  const selectedSources = getSourceFilter();
   await fetch("/api/prefetch", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, session_id: currentSessionId, source_filter: getSourceFilter() })
+    body: JSON.stringify({ text, session_id: currentSessionId, source_filter: selectedSources })
   });
 });
 
@@ -461,6 +481,12 @@ sidebarUploadTickBtn.addEventListener("click", async () => {
 sidebarUploadCrossBtn.addEventListener("click", () => {
   sidebarFileInput.value = "";
   sidebarUploadActions.classList.add("hidden");
+});
+
+sourceFilterBoxes.forEach((box) => {
+  box.addEventListener("change", () => {
+    renderDatasetsForSources();
+  });
 });
 
 loadInit();
