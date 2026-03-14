@@ -1,23 +1,37 @@
 # AI Data Analyst
 
-A local AI data copilot that lets users explore datasets using natural language. Users can upload CSV,XLSX or JSON files and ask questions to get insights, generate plots, or even create SQL queries automatically.
+A local-first AI data copilot for exploring datasets with natural language.
 
-Unlike general AI tools like ChatGPT or GitHub Copilot, this application is designed specifically for dataset exploration and analytics. It allows users to upload multiple local datasets, view extracted metadata such as columns and data types, and ask natural language questions to analyze the data. When provided with data modeling templates, the system can perform automatic joins based on key relationships and generate aggregations across datasets. It can also generate insights, visualizations, or SQL queries, while running LLMs and vectorDB locally instead of sending data to external APIs for data privacy and compliance.
+This application lets users upload or connect datasets, ask questions in plain English, generate insights, build visualizations, and even create SQL queries automatically. It is designed specifically for dataset exploration and analytics, not as a general-purpose coding assistant.
 
-## Example Queries
+Unlike cloud-only AI tools, this system can run LLMs locally, helping teams keep sensitive data inside their own environment for better privacy, compliance, and control.
 
-Users can ask questions like:
+Features
 
-- What are the top 5 products by revenue?
-- Show sales by region in a bar chart.
-- Which month had the highest growth?
-- Write a SQL query to calculate total revenue per customer.
+Upload and analyze CSV, XLSX, and JSON files
 
-The application responds with:
+Ask natural language questions about your data
 
-- Data insights and explanations.
-- Generated visualizations.
-- SQL queries or Python analysis code when requested.
+View extracted dataset metadata such as:
+- column names
+- data types
+- schema details
+
+Generate:
+- summaries and insights
+- charts and visualizations
+
+SQL queries
+
+- Work with multiple datasets at once
+- Support automatic joins when data modeling templates are provided
+- Perform aggregations across related datasets
+- Run with local LLMs and vector DBs for privacy-first analytics
+
+Connect to cloud storage sources including:
+- Azure Data Lake Storage (ADLS)
+- Amazon S3
+- other cloud-integrated data sources
 
 ## Technology Stack
 
