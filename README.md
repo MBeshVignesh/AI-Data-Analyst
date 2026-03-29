@@ -1,4 +1,4 @@
-# AI Data Analyst
+# CommerceIQ -  AI Data Analyst
 
 A local-first AI data copilot for exploring datasets with natural language.
 
